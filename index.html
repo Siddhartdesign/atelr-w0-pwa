@@ -14,7 +14,9 @@
   --ink:#f4f6f8;
   --muted:#9aa0a6;
   --accent:#7dd3fc;
-  --accent-root:#c084fc;
+  --grid-green:#4ade80;
+  --ratio-blue:#60a5fa;
+  --root-purple:#c084fc;
   --line:rgba(255,255,255,.38);
   --harmonic:rgba(125,211,252,.5);
   --radius:14px;
@@ -62,6 +64,7 @@ video{
   width:100%;
   height:100%;
   object-fit:cover;
+  display:none;
 }
 canvas{
   position:absolute;
@@ -301,6 +304,9 @@ canvas{
   <button id="menuBtn" class="topbtn">
     <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
   </button>
+  <button id="cameraBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+  </button>
   <button id="importBtn" class="topbtn">
     <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2h16v-2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
     Import
@@ -500,10 +506,34 @@ const stage=document.getElementById('stage');
 
 AngleSlantedTool.init(canvas,ctx);
 
-(async()=>{
-  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
-  video.srcObject=stream;
-})();
+let cameraStream = null;
+let cameraActive = false;
+
+async function toggleCamera() {
+  if (!cameraActive) {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+      video.srcObject = cameraStream;
+      video.style.display = 'block';
+      cameraActive = true;
+      // Turn off imported image when camera activates
+      if (importedImage) {
+        importedImage = null;
+        updateClearVisibility();
+        requestDraw();
+      }
+    } catch(err) {
+      console.error('Camera access denied:', err);
+    }
+  } else {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    video.style.display = 'none';
+    video.srcObject = null;
+    cameraActive = false;
+  }
+}
 
 function resize(){
   const dpr = getDevicePixelRatio();
@@ -567,8 +597,8 @@ function drawGrid(type, c = ctx){
   const h = canvas.height / dpr;
 
   c.strokeStyle = importedImage  
-    ? 'rgba(0,0,0,0.35)'  
-    : 'rgba(255,255,255,0.35)';
+    ? 'rgba(74,222,128,0.4)'  // green for images
+    : 'rgba(74,222,128,0.5)';  // green for camera
   c.lineWidth = 1.4;
   
   if(type === 'spiral'){
@@ -594,16 +624,46 @@ function drawGrid(type, c = ctx){
     return;
   }
 
+  // Perfect square grid logic
+  if(type === 'square4x4' || type === 'square4x7'){
+    const cols = 4;
+    const rows = type === 'square4x4' ? 4 : 7;
+    
+    // Determine largest square that fits
+    const minDim = Math.min(w, h);
+    const cellSize = minDim / Math.max(cols, rows);
+    
+    // Center the grid
+    const gridW = cellSize * cols;
+    const gridH = cellSize * rows;
+    const offsetX = (w - gridW) / 2;
+    const offsetY = (h - gridH) / 2;
+    
+    // Draw vertical lines
+    for(let i = 0; i <= cols; i++){
+      const x = offsetX + i * cellSize;
+      c.beginPath();
+      c.moveTo(x, offsetY);
+      c.lineTo(x, offsetY + gridH);
+      c.stroke();
+    }
+    
+    // Draw horizontal lines
+    for(let i = 0; i <= rows; i++){
+      const y = offsetY + i * cellSize;
+      c.beginPath();
+      c.moveTo(offsetX, y);
+      c.lineTo(offsetX + gridW, y);
+      c.stroke();
+    }
+    
+    return;
+  }
+
   const sets = {
     center:[[w/2,0,w/2,h],[0,h/2,w,h/2]],
     thirds:[[w/3,0,w/3,h],[2*w/3,0,2*w/3,h],[0,h/3,w,h/3],[0,2*h/3,w,2*h/3]],
     four:[...Array(3)].flatMap((_,i)=>[[ (i+1)*w/4,0,(i+1)*w/4,h ],[0,(i+1)*h/4,w,(i+1)*h/4]]),
-    square4x4:[...Array(3)].flatMap((_,i)=>[[ (i+1)*w/4,0,(i+1)*w/4,h ],[0,(i+1)*h/4,w,(i+1)*h/4]]),
-    square4x7:(() => {
-      const colLines = [...Array(3)].map((_,i)=>[ (i+1)*w/4,0,(i+1)*w/4,h ]);
-      const rowLines = [...Array(6)].map((_,i)=>[ 0,(i+1)*h/7,w,(i+1)*h/7 ]);
-      return [...colLines, ...rowLines];
-    })(),
     diagonals:[[0,0,w,h],[w,0,0,h]],
     baroque:[[0,h,w,0]],
     golden:[[w*0.618,0,w*0.618,h],[0,h*0.618,w,h*0.618]],
@@ -649,7 +709,9 @@ function drawHarmonic(type, c = ctx){
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
 
-  c.strokeStyle = importedImage ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)';
+  c.strokeStyle = importedImage 
+    ? 'rgba(96,165,250,0.4)'  // blue for images
+    : 'rgba(96,165,250,0.5)';  // blue for camera
   c.lineWidth = 2.2;
 
   const r = {
@@ -682,8 +744,10 @@ function drawRootRect(type, c = ctx){
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
 
-  c.strokeStyle = importedImage ? 'rgba(192,132,252,0.4)' : 'rgba(192,132,252,0.5)';
-  c.lineWidth = 2.4;
+  c.strokeStyle = importedImage 
+    ? 'rgba(192,132,252,0.4)'  // purple for images
+    : 'rgba(192,132,252,0.5)';  // purple for camera
+  c.lineWidth = 2.6;  // Slightly heavier than grid
 
   const cx = w / 2;
   const cy = h / 2;
@@ -732,6 +796,52 @@ function drawRootRect(type, c = ctx){
     const recW = rectH;
     const recH = rectW / 2;
     c.strokeRect(cx - recW/2, cy - recH/2, recW, recH);
+  }
+  else if(type === 'root9'){
+    // Root-9 / Dynamic Symmetry construction
+    const side = Math.min(w, h) * 0.7;
+    const sqrt3 = Math.sqrt(3);
+    
+    // Main rectangle (1:√3 ratio)
+    const rectW = side;
+    const rectH = side / sqrt3;
+    const x = cx - rectW/2;
+    const y = cy - rectH/2;
+    
+    c.strokeRect(x, y, rectW, rectH);
+    
+    // Main diagonals
+    c.beginPath();
+    c.moveTo(x, y);
+    c.lineTo(x + rectW, y + rectH);
+    c.stroke();
+    
+    c.beginPath();
+    c.moveTo(x + rectW, y);
+    c.lineTo(x, y + rectH);
+    c.stroke();
+    
+    // Reciprocal diagonals (converging to center)
+    c.beginPath();
+    c.moveTo(x, y + rectH);
+    c.lineTo(x + rectW/3, y);
+    c.stroke();
+    
+    c.beginPath();
+    c.moveTo(x + rectW, y + rectH);
+    c.lineTo(x + 2*rectW/3, y);
+    c.stroke();
+    
+    // Vertical divisions
+    c.beginPath();
+    c.moveTo(x + rectW/3, y);
+    c.lineTo(x + rectW/3, y + rectH);
+    c.stroke();
+    
+    c.beginPath();
+    c.moveTo(x + 2*rectW/3, y);
+    c.lineTo(x + 2*rectW/3, y + rectH);
+    c.stroke();
   }
   else if(type === 'dynamic'){
     const side = Math.min(w, h) * 0.5;
@@ -834,7 +944,7 @@ rootTool.onclick = () => {
     <div class='option' onclick="setRootRect('sqrt5')">√5 Rectangle</div>
     <div class='option' onclick="setRootRect('golden')">Golden Rectangle (φ)</div>
     <div class='option' onclick="setRootRect('reciprocal')">Reciprocal Root Rectangle</div>
-    <div class='option' onclick="setRootRect('dynamic')">Dynamic Root Rectangle</div>
+    <div class='option' onclick="setRootRect('root9')">Root-9 (Dynamic Symmetry)</div>
   `;
   panel.style.display = 'block';
   openPanel = 'root';
@@ -872,6 +982,7 @@ window.setRootRect = t => {
 const menuBtn = document.getElementById('menuBtn');
 const menuOverlay = document.getElementById('menuOverlay');
 const closeMenu = document.getElementById('closeMenu');
+const cameraBtn = document.getElementById('cameraBtn');
 const importBtn = document.getElementById('importBtn');
 const saveBtn = document.getElementById('saveBtn');
 const clearBtn = document.getElementById('clearBtn');
@@ -887,6 +998,11 @@ function updateClearVisibility(){
   clearBtn.style.display = importedImage ? 'flex' : 'none';
 }
 updateClearVisibility();
+
+// CAMERA
+cameraBtn.onclick = () => {
+  toggleCamera();
+};
 
 // MENU
 menuBtn.onclick = () => {
@@ -913,6 +1029,12 @@ imageInput.onchange = e => {
   img.onload = () => {
     importedImage = img;
     updateClearVisibility();
+    
+    // Turn off camera when image is imported
+    if (cameraActive) {
+      toggleCamera();
+    }
+    
     requestDraw();
   };
   img.src = URL.createObjectURL(file);
@@ -961,8 +1083,16 @@ downloadBtn.onclick = () => {
   // Scale the output context
   octx.scale(dpr, dpr);
 
-  // Base video frame
-  octx.drawImage(video, 0, 0, canvas.width / dpr, canvas.height / dpr);
+  // Base: video frame if camera active, otherwise black background
+  if (cameraActive && video.srcObject) {
+    octx.drawImage(video, 0, 0, canvas.width / dpr, canvas.height / dpr);
+  } else if (importedImage) {
+    // Image already drawn in drawToContext
+  } else {
+    // Black background
+    octx.fillStyle = '#000';
+    octx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+  }
 
   // Overlays (image + grids + angles)
   drawToContext(octx);
