@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Atelier — Viewfinder for Artists</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{
+  --bg:#0b0c0e;
+  --panel:#15171b;
+  --panel-soft:#1f2228;
+  --ink:#f4f6f8;
+  --muted:#9aa0a6;
+  --accent:#7dd3fc;
+  --grid-green:#4ade80;
+  --ratio-blue:#60a5fa;
+  --root-purple:#c084fc;
+  --line:rgba(255,255,255,.38);
+  --harmonic:rgba(125,211,252,.5);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html, body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  position:fixed;
+}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;
+  display:flex;
+  flex-direction:column;
+}
+header.title{
+  position:absolute;
+  top:8px;
+  right:12px;
+  z-index:20;
+  padding:6px 10px;
+  font-weight:600;
+  font-size:13px;
+  background:rgba(0,0,0,0.35);
+  border-radius:8px;
+  pointer-events:none;
+}
+
+.stage{
+  position:relative;
+  flex:1;
+  background:black;
+  overflow:hidden;
+  width:100%;
+  height:100%;
+}
+video{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:none;
+}
+canvas{
+  position:absolute;
+  inset:0;
+  touch-action: none;
+  /* CRITICAL: Prevent scaling issues */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+.toolbar{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+  padding:10px;
+  background:var(--panel);
+  border-top:1px solid #222;
+  z-index:30;
+  /* CRITICAL: Force pixel-perfect rendering */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.tool{
+  background:var(--panel-soft);
+  border-radius:var(--radius);
+  padding:10px 6px;
+  font-size:13px;
+  text-align:center;
+  color:var(--muted);
+  cursor:pointer;
+  user-select:none;
+  /* CRITICAL: Prevent subpixel rendering issues */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+.tool.active{color:var(--accent);background:#24303a}
+.panel{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:72px;
+  max-height:50vh;
+  background:var(--panel);
+  border-top:1px solid #222;
+  padding:12px;
+  display:none;
+  overflow-y:auto;
+  z-index:25;
+  /* CRITICAL: Force pixel-perfect rendering */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.panel h4{margin:0 0 10px;font-size:13px;color:var(--muted)}
+.option{
+  padding:9px;
+  border-radius:10px;
+  background:var(--panel-soft);
+  margin-bottom:8px;
+  font-size:13px;
+  cursor:pointer;
+}
+
+.topbar{
+  position:absolute;
+  top:8px;
+  left:8px;
+  display:flex;
+  gap:6px;
+  z-index:10;
+  flex-wrap:wrap;
+}
+.topbtn{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  font-size:12px;
+  background:var(--panel-soft);
+  color:var(--ink);
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  /* CRITICAL: Prevent button scaling issues */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+.topbtn svg{
+  width:16px;
+  height:16px;
+  flex-shrink:0;
+}
+
+.menuOverlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.6);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+}
+.menuBox{
+  background:var(--panel);
+  padding:20px;
+  border-radius:14px;
+  min-width:280px;
+  max-width:320px;
+  position:relative;
+}
+.closeMenu{
+  position:absolute;
+  top:12px;
+  right:14px;
+  background:none;
+  border:none;
+  color:var(--muted);
+  font-size:18px;
+  cursor:pointer;
+  line-height:1;
+}
+.menuSection{
+  margin-bottom:16px;
+}
+.menuSection h5{
+  margin:0 0 8px;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+  color:var(--muted);
+  font-weight:600;
+}
+.menuItem{
+  padding:10px;
+  border-radius:8px;
+  background:var(--panel-soft);
+  margin-bottom:6px;
+  font-size:13px;
+  cursor:pointer;
+  transition:background 0.15s;
+}
+.menuItem:hover{
+  background:#24303a;
+}
+.menuFooter{
+  margin-top:20px;
+  padding-top:12px;
+  border-top:1px solid #333;
+  font-size:11px;
+  color:#666;
+  text-align:center;
+}
+
+.saveOverlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.6);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+}
+.saveBox{
+  background:var(--panel);
+  padding:18px;
+  border-radius:14px;
+  min-width:220px;
+  max-width:90%;
+  position:relative;
+  text-align:center;
+}
+.closeSave{
+  position:absolute;
+  top:8px;
+  right:10px;
+  background:none;
+  border:none;
+  color:var(--muted);
+  font-size:16px;
+  cursor:pointer;
+}
+.saveAction{
+  margin-top:12px;
+  padding:10px;
+  width:100%;
+  background:var(--accent);
+  color:#000;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+}
+
+/* CRITICAL: Media query adjustments for high DPI displays */
+@media (min-resolution: 150dpi), (-webkit-min-device-pixel-ratio: 1.5) {
+  .tool {
+    font-size:14px;
+    padding:12px 8px;
+  }
+  .topbtn {
+    font-size:13px;
+    padding:8px 12px;
+  }
+  .topbtn svg {
+    width:18px;
+    height:18px;
+  }
+}
+
+@media (min-resolution: 200dpi), (-webkit-min-device-pixel-ratio: 2) {
+  .tool {
+    font-size:15px;
+    padding:14px 10px;
+  }
+  .topbtn {
+    font-size:14px;
+    padding:10px 14px;
+  }
+  .topbtn svg {
+    width:20px;
+    height:20px;
+  }
+}
+
+</style>
+</head>
+
+<body>
+<header class="title">Atelier</header>
+<div class="topbar">
+  <button id="menuBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <button id="cameraBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+  </button>
+  <button id="importBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2h16v-2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    Import
+  </button>
+  <button id="saveBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H5zM9 21v-6h6v6M9 3v6h6V3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    Save
+  </button>
+  <button id="clearBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6v14m8-14v14M5 6l1 14h12l1-14M9 6V4h6v2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    Clear
+  </button>
+  <button id="resetBtn" class="topbtn">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    Reset
+  </button>
+</div>
+
+<input type="file" id="imageInput" accept="image/*" hidden>
+
+<div class="stage" id="stage">
+  <video id="camera" autoplay playsinline></video>
+  <canvas id="overlay"></canvas>
+</div>
+
+<div class="panel" id="panel"></div>
+
+<div class="toolbar">
+  <div class="tool" id="gridTool">Grid</div>
+  <div class="tool" id="harmonicTool">Ratio</div>
+  <div class="tool" id="rootTool">Root Rect</div>
+  <div class="tool" id="angleTool">Block-in</div>
+</div>
+
+<div class="menuOverlay" id="menuOverlay">
+  <div class="menuBox">
+    <button class="closeMenu" id="closeMenu">✕</button>
+    
+    <div class="menuSection">
+      <h5>Learn</h5>
+      <div class="menuItem" onclick="alert('How to Use guide coming soon')">How to Use</div>
+    </div>
+    
+    <div class="menuSection">
+      <h5>Upgrade</h5>
+      <div class="menuItem" onclick="alert('Full version unlock coming soon')">Unlock Full Version</div>
+    </div>
+    
+    <div class="menuSection">
+      <h5>Resources</h5>
+      <div class="menuItem" onclick="alert('Resources coming soon')">Educational Resources</div>
+    </div>
+    
+    <div class="menuFooter">Version 1.0.0</div>
+  </div>
+</div>
+
+<div class="saveOverlay" id="saveOverlay">
+  <div class="saveBox">
+    <button class="closeSave" id="closeSave">✕</button>
+    <h4>Save Image</h4>
+    <button id="downloadBtn" class="saveAction">Download</button>
+  </div>
+</div>
+
+<script>
+/* =====================================================
+   DPI SCALING SUPPORT
+   ===================================================== */
+function getDevicePixelRatio() {
+  return window.devicePixelRatio || 1;
+}
+
+/* =====================================================
+   RENDER LOOP
+   ===================================================== */
+let needsRedraw = true;
+function requestDraw(){ needsRedraw = true; }
+function renderLoop(){
+  if(needsRedraw){
+    draw();
+    needsRedraw = false;
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+/* =====================================================
+   AngleSlantedTool (UNTOUCHED)
+   ===================================================== */
+const AngleSlantedTool = (() => {
+  let ctx, canvas;
+  let lines = [];
+  let active = false;
+  let selected = null;
+  let dragPart = null;
+  let lastPos = { x: 0, y: 0 };
+
+  function init(_canvas, _ctx) {
+    canvas = _canvas;
+    ctx = _ctx;
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+  function activate(){ active = true; requestDraw(); }
+  function deactivate(){ active = false; selected = null; requestDraw(); }
+
+  function onDown(e){
+    if(!active) return;
+    const p = pos(e); lastPos = p;
+    const hit = hitTest(p.x,p.y);
+    if(hit){ selected = hit.line; dragPart = hit.part; return; }
+    const ln = { x1:p.x, y1:p.y, x2:p.x+120, y2:p.y+40 };
+    lines.push(ln); selected = ln; dragPart = 'p2'; requestDraw();
+  }
+  function onMove(e){
+    if(!active || !selected) return;
+    const p = pos(e);
+    const dx = p.x-lastPos.x, dy = p.y-lastPos.y;
+    if(dragPart==='p1'){ selected.x1=p.x; selected.y1=p.y; }
+    else if(dragPart==='p2'){ selected.x2=p.x; selected.y2=p.y; }
+    else if(dragPart==='body'){
+      selected.x1+=dx; selected.y1+=dy;
+      selected.x2+=dx; selected.y2+=dy;
+    }
+    lastPos = p; requestDraw();
+  }
+  function onUp(){ dragPart=null; }
+  function draw(c = ctx){
+    if(!active) return;
+
+    lines.forEach(ln=>{
+      const sel = ln === selected;
+
+      if(sel){
+        c.save();
+        c.strokeStyle = 'rgba(0,180,255,0.25)';
+        c.lineWidth = 10;
+        c.lineCap = 'round';
+        c.beginPath();
+        c.moveTo(ln.x1, ln.y1);
+        c.lineTo(ln.x2, ln.y2);
+        c.stroke();
+        c.restore();
+      }
+
+      c.strokeStyle = sel ? 'rgba(0,200,255,1)' : 'rgba(255,255,255,0.9)';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(ln.x1, ln.y1);
+      c.lineTo(ln.x2, ln.y2);
+      c.stroke();
+
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.arc(ln.x1, ln.y1, 6, 0, Math.PI * 2);
+      c.fill();
+      c.beginPath();
+      c.arc(ln.x2, ln.y2, 6, 0, Math.PI * 2);
+      c.fill();
+
+      const ang = (Math.atan2(ln.y1 - ln.y2, ln.x2 - ln.x1) * 180 / Math.PI).toFixed(1);
+      c.fillStyle = 'rgba(255,255,255,0.85)';
+      c.font = '12px system-ui';
+      c.fillText(`${ang}°`, ln.x2 + 8, ln.y2 - 8);
+    });
+  }
+
+  function hitTest(x,y){
+    for(let i=lines.length-1;i>=0;i--){
+      const ln=lines[i];
+      if(Math.hypot(x-ln.x1,y-ln.y1)<12) return {line:ln,part:'p1'};
+      if(Math.hypot(x-ln.x2,y-ln.y2)<12) return {line:ln,part:'p2'};
+    }
+    return null;
+  }
+  function pos(e){ 
+    const r=canvas.getBoundingClientRect(); 
+    return {x:e.clientX-r.left,y:e.clientY-r.top};
+  }
+  function clear(){
+    lines = [];
+  }
+
+  return { init, activate, deactivate, draw, clear };
+})();
+
+/* =====================================================
+   APP STATE
+   ===================================================== */
+const state={ grid:null, harmonic:null, rootRect:null };
+const video=document.getElementById('camera');
+const canvas=document.getElementById('overlay');
+const ctx=canvas.getContext('2d');
+const panel=document.getElementById('panel');
+const stage=document.getElementById('stage');
+
+AngleSlantedTool.init(canvas,ctx);
+
+let cameraStream = null;
+let cameraActive = false;
+
+async function toggleCamera() {
+  if (!cameraActive) {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+      video.srcObject = cameraStream;
+      video.style.display = 'block';
+      cameraActive = true;
+      // Turn off imported image when camera activates
+      if (importedImage) {
+        importedImage = null;
+        updateClearVisibility();
+        requestDraw();
+      }
+    } catch(err) {
+      console.error('Camera access denied:', err);
+    }
+  } else {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    video.style.display = 'none';
+    video.srcObject = null;
+    cameraActive = false;
+  }
+}
+
+function resize(){
+  const dpr = getDevicePixelRatio();
+  canvas.width = stage.clientWidth * dpr;
+  canvas.height = stage.clientHeight * dpr;
+  canvas.style.width = stage.clientWidth + 'px';
+  canvas.style.height = stage.clientHeight + 'px';
+  ctx.scale(dpr, dpr);
+  requestDraw();
+}
+
+video.addEventListener('loadedmetadata',resize);
+window.addEventListener('resize',resize);
+resize();
+
+function draw(){
+  const dpr = getDevicePixelRatio();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawToContext(ctx);
+}
+
+function drawToContext(c){
+  const dpr = getDevicePixelRatio();
+  const cw = canvas.width / dpr;
+  const ch = canvas.height / dpr;
+  
+  if(importedImage){
+    const iw = importedImage.width;
+    const ih = importedImage.height;
+    const cr = cw / ch;
+    const ir = iw / ih;
+
+    let dw, dh, dx, dy;
+
+    // Auto-fit intelligently (no cropping)
+    if (ir > cr) { 
+      dw = cw; 
+      dh = cw / ir; 
+    } else { 
+      dh = ch; 
+      dw = ch * ir; 
+    }
+
+    dx = (cw - dw) / 2;
+    dy = (ch - dh) / 2;
+    c.drawImage(importedImage, dx, dy, dw, dh);
+  }
+
+  if(state.grid) drawGrid(state.grid, c);
+  if(state.harmonic) drawHarmonic(state.harmonic, c);
+  if(state.rootRect) drawRootRect(state.rootRect, c);
+  AngleSlantedTool.draw(c);
+}
+
+/* =====================================================
+   GRID DRAWING
+   ===================================================== */
+function drawGrid(type, c = ctx){
+  const dpr = getDevicePixelRatio();
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
+
+  c.strokeStyle = importedImage  
+    ? 'rgba(74,222,128,0.4)'  // green for images
+    : 'rgba(74,222,128,0.5)';  // green for camera
+  c.lineWidth = 1.4;
+  
+  if(type === 'spiral'){
+    const cx = w / 2;
+    const cy = h / 2;
+
+    const a = 2;
+    const b = Math.log((1 + Math.sqrt(5)) / 2) / (Math.PI / 2);
+
+    c.beginPath();
+    let first = true;
+
+    for(let t = 0; t < Math.PI * 6; t += 0.05){
+      const r = a * Math.exp(b * t);
+      const x = cx + r * Math.cos(t);
+      const y = cy + r * Math.sin(t);
+
+      if(first){ c.moveTo(x, y); first = false; }
+      else { c.lineTo(x, y); }
+    }
+
+    c.stroke();
+    return;
+  }
+
+  // Perfect square grid logic
+  if(type === 'square4x4' || type === 'square4x7'){
+    const cols = 4;
+    const rows = type === 'square4x4' ? 4 : 7;
+    
+    // Determine largest square that fits
+    const minDim = Math.min(w, h);
+    const cellSize = minDim / Math.max(cols, rows);
+    
+    // Center the grid
+    const gridW = cellSize * cols;
+    const gridH = cellSize * rows;
+    const offsetX = (w - gridW) / 2;
+    const offsetY = (h - gridH) / 2;
+    
+    // Draw vertical lines
+    for(let i = 0; i <= cols; i++){
+      const x = offsetX + i * cellSize;
+      c.beginPath();
+      c.moveTo(x, offsetY);
+      c.lineTo(x, offsetY + gridH);
+      c.stroke();
+    }
+    
+    // Draw horizontal lines
+    for(let i = 0; i <= rows; i++){
+      const y = offsetY + i * cellSize;
+      c.beginPath();
+      c.moveTo(offsetX, y);
+      c.lineTo(offsetX + gridW, y);
+      c.stroke();
+    }
+    
+    return;
+  }
+
+  const sets = {
+    center:[[w/2,0,w/2,h],[0,h/2,w,h/2]],
+    thirds:[[w/3,0,w/3,h],[2*w/3,0,2*w/3,h],[0,h/3,w,h/3],[0,2*h/3,w,2*h/3]],
+    four:[...Array(3)].flatMap((_,i)=>[[ (i+1)*w/4,0,(i+1)*w/4,h ],[0,(i+1)*h/4,w,(i+1)*h/4]]),
+    diagonals:[[0,0,w,h],[w,0,0,h]],
+    baroque:[[0,h,w,0]],
+    golden:[[w*0.618,0,w*0.618,h],[0,h*0.618,w,h*0.618]],
+    dynamic: (() => {
+      const phi = (1 + Math.sqrt(5)) / 2;
+
+      const x1 = w / phi;
+      const x2 = w - x1;
+      const y1 = h / phi;
+      const y2 = h - y1;
+
+      return [
+        [0, 0, w, h],
+        [0, h, w, 0],
+        [0, h, x1, 0],
+        [w, h, x2, 0],
+        [0, 0, x1, h],
+        [w, 0, x2, h],
+        [x1, 0, x1, h],
+        [x2, 0, x2, h],
+        [0, y2, w, y2],
+        [0, y1, w, y1],
+      ];
+    })(),
+    modular8:[...Array(7)].flatMap((_,i)=>[[ (i+1)*w/8,0,(i+1)*w/8,h ],[0,(i+1)*h/8,w,(i+1)*h/8]])
+  }[type];
+
+  if(!sets) return;
+
+  sets.forEach(l=>{
+    c.beginPath();
+    c.moveTo(l[0], l[1]);
+    c.lineTo(l[2], l[3]);
+    c.stroke();
+  });
+}
+
+/* =====================================================
+   HARMONIC DRAWING
+   ===================================================== */
+function drawHarmonic(type, c = ctx){
+  const dpr = getDevicePixelRatio();
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
+
+  c.strokeStyle = importedImage 
+    ? 'rgba(96,165,250,0.4)'  // blue for images
+    : 'rgba(96,165,250,0.5)';  // blue for camera
+  c.lineWidth = 2.2;
+
+  const r = {
+    '1:2':[0.5],
+    '2:3':[2/3],
+    '3:4':[3/4],
+    '3:6:9':[3/9,6/9],
+    '4:6:9':[4/9,6/9],
+    'sqrt2':[1/Math.SQRT2],
+    'sqrt3':[1/Math.sqrt(3)],
+    'sqrt5':[1/Math.sqrt(5)],
+    'phi':[0.61803398875]
+  }[type];
+
+  if(!r) return;
+
+  r.forEach(x=>{
+    c.beginPath();
+    c.moveTo(w * x, 0);
+    c.lineTo(w * x, h);
+    c.stroke();
+  });
+}
+
+/* =====================================================
+   ROOT RECTANGLES DRAWING
+   ===================================================== */
+function drawRootRect(type, c = ctx){
+  const dpr = getDevicePixelRatio();
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
+
+  c.strokeStyle = importedImage 
+    ? 'rgba(192,132,252,0.4)'  // purple for images
+    : 'rgba(192,132,252,0.5)';  // purple for camera
+  c.lineWidth = 2.6;  // Slightly heavier than grid
+
+  const cx = w / 2;
+  const cy = h / 2;
+
+  if(type === 'sqrt2'){
+    const side = Math.min(w, h) * 0.6;
+    const rectW = side;
+    const rectH = side / Math.SQRT2;
+    c.strokeRect(cx - rectW/2, cy - rectH/2, rectW, rectH);
+  }
+  else if(type === 'sqrt3'){
+    const side = Math.min(w, h) * 0.6;
+    const rectW = side;
+    const rectH = side / Math.sqrt(3);
+    c.strokeRect(cx - rectW/2, cy - rectH/2, rectW, rectH);
+  }
+  else if(type === 'sqrt4'){
+    const side = Math.min(w, h) * 0.6;
+    const rectW = side;
+    const rectH = side / 2;
+    c.strokeRect(cx - rectW/2, cy - rectH/2, rectW, rectH);
+  }
+  else if(type === 'sqrt5'){
+    const side = Math.min(w, h) * 0.6;
+    const rectW = side;
+    const rectH = side / Math.sqrt(5);
+    c.strokeRect(cx - rectW/2, cy - rectH/2, rectW, rectH);
+  }
+  else if(type === 'golden'){
+    const side = Math.min(w, h) * 0.6;
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const rectW = side;
+    const rectH = side / phi;
+    c.strokeRect(cx - rectW/2, cy - rectH/2, rectW, rectH);
+  }
+  else if(type === 'reciprocal'){
+    const side = Math.min(w, h) * 0.5;
+    const sqrt2 = Math.SQRT2;
+    
+    // Main √2 rectangle
+    const rectW = side;
+    const rectH = side / sqrt2;
+    c.strokeRect(cx - rectW/2, cy - rectH/2, rectW, rectH);
+    
+    // Reciprocal rectangle (rotated 90°)
+    const recW = rectH;
+    const recH = rectW / 2;
+    c.strokeRect(cx - recW/2, cy - recH/2, recW, recH);
+  }
+  else if(type === 'root9'){
+    // Root-9 / Dynamic Symmetry construction
+    const side = Math.min(w, h) * 0.7;
+    const sqrt3 = Math.sqrt(3);
+    
+    // Main rectangle (1:√3 ratio)
+    const rectW = side;
+    const rectH = side / sqrt3;
+    const x = cx - rectW/2;
+    const y = cy - rectH/2;
+    
+    c.strokeRect(x, y, rectW, rectH);
+    
+    // Main diagonals
+    c.beginPath();
+    c.moveTo(x, y);
+    c.lineTo(x + rectW, y + rectH);
+    c.stroke();
+    
+    c.beginPath();
+    c.moveTo(x + rectW, y);
+    c.lineTo(x, y + rectH);
+    c.stroke();
+    
+    // Reciprocal diagonals (converging to center)
+    c.beginPath();
+    c.moveTo(x, y + rectH);
+    c.lineTo(x + rectW/3, y);
+    c.stroke();
+    
+    c.beginPath();
+    c.moveTo(x + rectW, y + rectH);
+    c.lineTo(x + 2*rectW/3, y);
+    c.stroke();
+    
+    // Vertical divisions
+    c.beginPath();
+    c.moveTo(x + rectW/3, y);
+    c.lineTo(x + rectW/3, y + rectH);
+    c.stroke();
+    
+    c.beginPath();
+    c.moveTo(x + 2*rectW/3, y);
+    c.lineTo(x + 2*rectW/3, y + rectH);
+    c.stroke();
+  }
+  else if(type === 'dynamic'){
+    const side = Math.min(w, h) * 0.5;
+    const sqrt2 = Math.SQRT2;
+    
+    // First √2 rectangle
+    let rectW = side;
+    let rectH = side / sqrt2;
+    let x = cx - rectW/2;
+    let y = cy - rectH/2;
+    
+    c.strokeRect(x, y, rectW, rectH);
+    
+    // Propagate along long side
+    for(let i = 0; i < 3; i++){
+      const newH = rectW / sqrt2;
+      y = y + rectH;
+      rectH = newH;
+      c.strokeRect(x, y, rectW, rectH);
+    }
+  }
+}
+
+/* =====================================================
+   UI
+   ===================================================== */
+let openPanel = null;
+
+function closePanel(){
+  panel.style.display = 'none';
+  openPanel = null;
+}
+
+gridTool.onclick = () => {
+  if (openPanel === 'grid') {
+    closePanel();
+    return;
+  }
+
+  state.harmonic = null;
+  state.rootRect = null;
+
+  panel.innerHTML = `
+    <h4>Grid</h4>
+    <div class='option' onclick="setGrid('center')">Center Axis</div>
+    <div class='option' onclick="setGrid('thirds')">Rule of Thirds</div>
+    <div class='option' onclick="setGrid('four')">Quarter Grid</div>
+    <div class='option' onclick="setGrid('square4x4')">Square 4×4</div>
+    <div class='option' onclick="setGrid('square4x7')">Square 4×7</div>
+    <div class='option' onclick="setGrid('diagonals')">Diagonals</div>
+    <div class='option' onclick="setGrid('baroque')">Baroque Diagonal</div>
+    <div class='option' onclick="setGrid('golden')">Golden Section</div>
+    <div class='option' onclick="setGrid('dynamic')">Dynamic Armature</div>
+    <div class='option' onclick="setGrid('spiral')">Golden Spiral</div>
+    <div class='option' onclick="setGrid('modular8')">Modular 8×8</div>
+  `;
+  panel.style.display = 'block';
+  openPanel = 'grid';
+};
+
+harmonicTool.onclick = () => {
+  if (openPanel === 'harmonic') {
+    closePanel();
+    return;
+  }
+
+  state.grid = null;
+  state.rootRect = null;
+
+  panel.innerHTML = `
+    <h4>Harmonic</h4>
+    <div class='option' onclick="setHarmonic('1:2')">1 : 2</div>
+    <div class='option' onclick="setHarmonic('2:3')">2 : 3</div>
+    <div class='option' onclick="setHarmonic('3:4')">3 : 4</div>
+    <div class='option' onclick="setHarmonic('3:6:9')">3 : 6 : 9</div>
+    <div class='option' onclick="setHarmonic('4:6:9')">4 : 6 : 9</div>
+    <div class='option' onclick="setHarmonic('sqrt2')">√2</div>
+    <div class='option' onclick="setHarmonic('sqrt3')">√3</div>
+    <div class='option' onclick="setHarmonic('sqrt5')">√5</div>
+    <div class='option' onclick="setHarmonic('phi')">Golden Section (φ)</div>
+  `;
+  panel.style.display = 'block';
+  openPanel = 'harmonic';
+};
+
+rootTool.onclick = () => {
+  if (openPanel === 'root') {
+    closePanel();
+    return;
+  }
+
+  state.grid = null;
+  state.harmonic = null;
+
+  panel.innerHTML = `
+    <h4>Root Rectangles</h4>
+    <div class='option' onclick="setRootRect('sqrt2')">√2 Rectangle</div>
+    <div class='option' onclick="setRootRect('sqrt3')">√3 Rectangle</div>
+    <div class='option' onclick="setRootRect('sqrt4')">√4 Rectangle</div>
+    <div class='option' onclick="setRootRect('sqrt5')">√5 Rectangle</div>
+    <div class='option' onclick="setRootRect('golden')">Golden Rectangle (φ)</div>
+    <div class='option' onclick="setRootRect('reciprocal')">Reciprocal Root Rectangle</div>
+    <div class='option' onclick="setRootRect('root9')">Root-9 (Dynamic Symmetry)</div>
+  `;
+  panel.style.display = 'block';
+  openPanel = 'root';
+};
+
+angleTool.onclick=()=>{
+  AngleSlantedTool.activate();
+  angleTool.classList.add('active');
+};
+
+window.setGrid = t => {
+  state.grid = t;
+  state.harmonic = null;
+  state.rootRect = null;
+  closePanel();
+  requestDraw();
+};
+
+window.setHarmonic = t => {
+  state.harmonic = t;
+  state.grid = null;
+  state.rootRect = null;
+  closePanel();
+  requestDraw();
+};
+
+window.setRootRect = t => {
+  state.rootRect = t;
+  state.grid = null;
+  state.harmonic = null;
+  closePanel();
+  requestDraw();
+};
+
+const menuBtn = document.getElementById('menuBtn');
+const menuOverlay = document.getElementById('menuOverlay');
+const closeMenu = document.getElementById('closeMenu');
+const cameraBtn = document.getElementById('cameraBtn');
+const importBtn = document.getElementById('importBtn');
+const saveBtn = document.getElementById('saveBtn');
+const clearBtn = document.getElementById('clearBtn');
+const imageInput = document.getElementById('imageInput');
+const saveOverlay = document.getElementById('saveOverlay');
+const closeSave = document.getElementById('closeSave');
+const downloadBtn = document.getElementById('downloadBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+let importedImage = null;
+
+function updateClearVisibility(){
+  clearBtn.style.display = importedImage ? 'flex' : 'none';
+}
+updateClearVisibility();
+
+// CAMERA
+cameraBtn.onclick = () => {
+  toggleCamera();
+};
+
+// MENU
+menuBtn.onclick = () => {
+  menuOverlay.style.display = 'flex';
+};
+
+closeMenu.onclick = () => {
+  menuOverlay.style.display = 'none';
+};
+
+menuOverlay.onclick = (e) => {
+  if(e.target === menuOverlay){
+    menuOverlay.style.display = 'none';
+  }
+};
+
+// IMPORT
+importBtn.onclick = () => imageInput.click();
+
+imageInput.onchange = e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = () => {
+    importedImage = img;
+    updateClearVisibility();
+    
+    // Turn off camera when image is imported
+    if (cameraActive) {
+      toggleCamera();
+    }
+    
+    requestDraw();
+  };
+  img.src = URL.createObjectURL(file);
+};
+
+// CLEAR
+clearBtn.onclick = () => {
+  importedImage = null;
+  state.grid = null;
+  state.harmonic = null;
+  state.rootRect = null;
+  AngleSlantedTool.deactivate();
+  AngleSlantedTool.clear();
+  updateClearVisibility();
+  requestDraw();
+};
+
+// SAVE
+saveBtn.onclick = () => {
+  saveOverlay.style.display = 'flex';
+};
+
+closeSave.onclick = () => {
+  saveOverlay.style.display = 'none';
+};
+
+// RESET
+resetBtn.onclick = () => {
+  state.grid = null;
+  state.harmonic = null;
+  state.rootRect = null;
+  AngleSlantedTool.deactivate();
+  AngleSlantedTool.clear();
+  requestDraw();
+};
+
+downloadBtn.onclick = () => {
+  const dpr = getDevicePixelRatio();
+  const out = document.createElement('canvas');
+  
+  // CRITICAL: Set export canvas size accounting for DPI
+  out.width = canvas.width;
+  out.height = canvas.height;
+  const octx = out.getContext('2d');
+  
+  // Scale the output context
+  octx.scale(dpr, dpr);
+
+  // Base: video frame if camera active, otherwise black background
+  if (cameraActive && video.srcObject) {
+    octx.drawImage(video, 0, 0, canvas.width / dpr, canvas.height / dpr);
+  } else if (importedImage) {
+    // Image already drawn in drawToContext
+  } else {
+    // Black background
+    octx.fillStyle = '#000';
+    octx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+  }
+
+  // Overlays (image + grids + angles)
+  drawToContext(octx);
+
+  const a = document.createElement('a');
+  a.href = out.toDataURL('image/png');
+  a.download = 'atelier.png';
+  a.click();
+
+  saveOverlay.style.display = 'none';
+};
+
+renderLoop();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./service-worker.js");
+}
+</script>
+
+</body>
+</html>
