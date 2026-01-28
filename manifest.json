@@ -1,5 +1,5 @@
 {
-  "name": "Composition Pro: Artist Tool",
+  "name": "Composition Pro",
   "short_name": "CompositionPro",
   "description": "Professional composition analysis tool for artists. Frame presets, dynamic grids, root rectangles, and advanced block-in guides.",
   "start_url": "./",
